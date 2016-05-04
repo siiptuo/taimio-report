@@ -1,5 +1,6 @@
 from collections import defaultdict
 import os.path
+from getpass import getpass
 import sys
 import requests
 import arrow
@@ -10,7 +11,7 @@ API_ROOT = 'http://api.tiima.dev'
 def fetch_token():
     if not os.path.isfile('token'):
         username = input('Username: ')
-        password = input('Password: ')
+        password = getpass('Password: ')
         req = requests.post(API_ROOT + '/login', data={
             'username': username,
             'password': password,
