@@ -10,10 +10,10 @@ API_ROOT = 'http://api.tiima.dev'
 def fetch_token():
     if not os.path.isfile('token'):
         username = input('Username: ')
-        password = input('Username: ')
+        password = input('Password: ')
         req = requests.post(API_ROOT + '/login', data={
             'username': username,
-            'password': password
+            'password': password,
         })
         token = req.json()['token']
         with open('token', mode='w') as file:
@@ -25,7 +25,7 @@ def fetch_token():
 
 def fetch_activities(token):
     req = requests.get(API_ROOT + '/activities', headers={
-        'Authorization': 'Bearer ' + token
+        'Authorization': 'Bearer ' + token,
     })
     for activity in req.json():
         activity['started_at'] = arrow.get(activity['started_at'])
