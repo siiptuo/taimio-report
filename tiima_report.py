@@ -2,6 +2,7 @@ from collections import defaultdict
 import os.path
 from getpass import getpass
 import sys
+import json
 import requests
 import arrow
 
@@ -24,46 +25,56 @@ def fetch_token():
         return file.read()
 
 
+class Activity:
+    pass
+
+
+def as_activity(data):
+    activity = Activity()
+    activity.title = data['title']
+    activity.tags = data['tags']
+    activity.started_at = arrow.get(data['started_at'])
+    activity.finished_at = arrow.get(data['finished_at'])
+    return activity
+
+
 def fetch_activities(token):
     req = requests.get(API_ROOT + '/activities', headers={
         'Authorization': 'Bearer ' + token,
     })
-    for activity in req.json():
-        activity['started_at'] = arrow.get(activity['started_at'])
-        activity['finished_at'] = arrow.get(activity['finished_at'])
-        yield activity
+    return json.loads(req.text, object_hook=as_activity)
 
 
 def get_activity_project(activity, tag_projects):
-    for tag in activity['tags']:
+    for tag in activity.tags:
         if tag in tag_projects:
             return tag_projects[tag]
     return None
 
 
 def calculate_activity_duration_hours(activity):
-    delta = activity['finished_at'] - activity['started_at']
+    delta = activity.finished_at - activity.started_at
     return delta.total_seconds() / (60 * 60)
 
 
 def filter_activities_by_month(activities, year, month):
     for activity in activities:
-        activity_year = activity['started_at'].year
-        activity_month = activity['started_at'].month
+        activity_year = activity.started_at.year
+        activity_month = activity.started_at.month
         if activity_year == year and activity_month == month:
             yield activity
 
 
 def filter_activities_by_tag(activities, tag):
     for activity in activities:
-        if tag in activity['tags']:
+        if tag in activity.tags:
             yield activity
 
 
 def group_activities_by_date(activities):
     dates = defaultdict(list)
     for activity in activities:
-        dates[activity['started_at'].date()].append(activity)
+        dates[activity.started_at.date()].append(activity)
     return dates
 
 
