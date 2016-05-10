@@ -1,6 +1,7 @@
 from collections import defaultdict
 import os.path
 from getpass import getpass
+import datetime
 import sys
 import json
 import requests
@@ -38,10 +39,21 @@ def as_activity(data):
     return activity
 
 
-def fetch_activities(token):
-    req = requests.get(API_ROOT + '/activities', headers={
-        'Authorization': 'Bearer ' + token,
-    })
+def get_last_date_of_month(year, month):
+    from calendar import monthrange
+    return datetime.date(year, month, monthrange(year, month)[1])
+
+
+def fetch_activities(token, tag, year, month):
+    req = requests.get(API_ROOT + '/activities',
+                       params={
+                           'start_date': datetime.date(year, month, 1),
+                           'end_date': get_last_date_of_month(year, month),
+                           'tag': tag,
+                       },
+                       headers={
+                           'Authorization': 'Bearer ' + token,
+                       })
     return json.loads(req.text, object_hook=as_activity)
 
 
@@ -57,20 +69,6 @@ def calculate_activity_duration_hours(activity):
     return delta.total_seconds() / (60 * 60)
 
 
-def filter_activities_by_month(activities, year, month):
-    for activity in activities:
-        activity_year = activity.started_at.year
-        activity_month = activity.started_at.month
-        if activity_year == year and activity_month == month:
-            yield activity
-
-
-def filter_activities_by_tag(activities, tag):
-    for activity in activities:
-        if tag in activity.tags:
-            yield activity
-
-
 def group_activities_by_date(activities):
     dates = defaultdict(list)
     for activity in activities:
@@ -78,9 +76,8 @@ def group_activities_by_date(activities):
     return dates
 
 
-def generate_day_report(activities, tag_projects, tag, year, month):
-    activities = filter_activities_by_month(activities, year, month)
-    activities = filter_activities_by_tag(activities, tag)
+def generate_day_report(token, tag_projects, tag, year, month):
+    activities = fetch_activities(token, tag, year, month)
     activities_by_date = group_activities_by_date(activities)
 
     for date in sorted(activities_by_date):
@@ -108,9 +105,8 @@ def format_hours(number):
 def main():
     tag_projects = load_projects('projects')
     token = fetch_token()
-    activities = fetch_activities(token)
     total_hours = 0
-    report = generate_day_report(activities, tag_projects, sys.argv[1],
+    report = generate_day_report(token, tag_projects, sys.argv[1],
                                  int(sys.argv[2]), int(sys.argv[3]))
     for date, hours, projects in report:
         print(date, format_hours(hours), projects)
