@@ -1,7 +1,7 @@
-# Tiima report
+# Taimio report
 
-Tiima report is a simple command line application that generates reports from
-[Tiima API](https://github.com/siiptuo/tiima-api). It required Python to run.
+Taimio report is a simple command line application that generates reports from
+[Taimio API](https://github.com/siiptuo/taimio-api). It required Python to run.
 
 # License
 
