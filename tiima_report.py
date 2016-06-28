@@ -7,7 +7,7 @@ import json
 import requests
 import arrow
 
-API_ROOT = 'http://api.tiima.dev'
+API_ROOT = 'https://api.taim.io'
 
 
 def fetch_token():
