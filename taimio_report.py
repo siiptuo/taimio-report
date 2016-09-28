@@ -1,5 +1,6 @@
 from collections import defaultdict
 import os.path
+import re
 from getpass import getpass
 import datetime
 import sys
@@ -44,11 +45,15 @@ def get_last_date_of_month(year, month):
     return datetime.date(year, month, monthrange(year, month)[1])
 
 
-def fetch_activities(token, tag, year, month):
+def get_last_date_of_year(year):
+    return get_last_date_of_month(year, 12)
+
+
+def fetch_activities(token, tag, start_date, end_date):
     req = requests.get(API_ROOT + '/activities',
                        params={
-                           'start_date': datetime.date(year, month, 1),
-                           'end_date': get_last_date_of_month(year, month),
+                           'start_date': start_date,
+                           'end_date': end_date,
                            'tag': tag,
                        },
                        headers={
@@ -76,8 +81,8 @@ def group_activities_by_date(activities):
     return dates
 
 
-def generate_day_report(token, tag_projects, tag, year, month):
-    activities = fetch_activities(token, tag, year, month)
+def generate_day_report(token, tag_projects, tag, start_date, end_date):
+    activities = fetch_activities(token, tag, start_date, end_date)
     activities_by_date = group_activities_by_date(activities)
 
     for date in sorted(activities_by_date):
@@ -106,8 +111,27 @@ def main():
     tag_projects = load_projects('projects')
     token = fetch_token()
     total_hours = 0
+
+    try:
+        date_regex = r'^(\d+)(?:-(0\d|1[0-2])(?:-([0-2]\d|3[0-1]))?)?$'
+        start_date = re.match(date_regex, sys.argv[2])
+        if start_date is None:
+            raise ValueError
+        year, month, day = (int(s) if s else None
+                            for s in start_date.group(1, 2, 3))
+        start_date = datetime.date(year, month or 1, day or 1)
+    except ValueError:
+        sys.exit('Invalid date {}, use YYYY, YYYY-MM or YYYY-MM-DD'.format(sys.argv[2]))
+
+    if not month:
+        end_date = get_last_date_of_year(year)
+    elif not day:
+        end_date = get_last_date_of_month(year, month)
+    else:
+        end_date = start_date
+
     report = generate_day_report(token, tag_projects, sys.argv[1],
-                                 int(sys.argv[2]), int(sys.argv[3]))
+                                 start_date, end_date)
     for date, hours, projects in report:
         print(date, format_hours(hours), projects)
         total_hours += hours
