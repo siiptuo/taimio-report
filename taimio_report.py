@@ -114,6 +114,10 @@ def main():
     token = fetch_token()
     total_hours = 0
 
+    if len(sys.argv) < 3:
+        print('Usage: ./taimio_report.py tag date')
+        sys.exit()
+
     try:
         date_regex = r'^(\d+)(?:-(0\d|1[0-2])(?:-([0-2]\d|3[0-1]))?)?$'
         start_date = re.match(date_regex, sys.argv[2])
