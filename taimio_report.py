@@ -108,6 +108,18 @@ def generate_day_report(token, tag_projects, tag, start_date, end_date):
         yield date, hours, ', '.join(sorted(projects))
 
 
+def generate_project_report(token, tag_projects, tag, start_date, end_date):
+    activities = fetch_activities(token, tag, start_date, end_date)
+    activities_by_date = group_activities_by_date(activities)
+
+    for date in sorted(activities_by_date):
+        projects = defaultdict(list)
+        for activity in activities_by_date[date]:
+            projects[get_activity_project(activity, tag_projects)].append(activity)
+        for project in projects:
+            yield date, project or 'Other', projects[project]
+
+
 def load_projects(filename):
     tag_projects = {}
     with open(filename) as file:
@@ -124,17 +136,20 @@ def format_hours(number):
 def main():
     tag_projects = load_projects('projects')
     token = fetch_token()
-    total_hours = 0
 
-    if len(sys.argv) < 3:
-        print('Usage: ./taimio_report.py tag <start-date> [<end-date>]')
+    if len(sys.argv) < 4:
+        print('Usage: ./taimio_report.py (day|project) tag <start-date> [<end-date>]')
         sys.exit()
 
+    report_type = sys.argv[1]
+    if report_type not in ('day', 'project'):
+        sys.exit("invalid report type {}, use day or project".format(report_type))
+
     try:
-        year, month, day = parse_date(sys.argv[2])
+        year, month, day = parse_date(sys.argv[3])
         start_date = datetime.date(year, month or 1, day or 1)
-        if len(sys.argv) > 3:
-            year, month, day = parse_date(sys.argv[3])
+        if len(sys.argv) > 4:
+            year, month, day = parse_date(sys.argv[4])
         if not month:
             end_date = get_last_date_of_year(year)
         elif not day:
@@ -142,14 +157,25 @@ def main():
         else:
             end_date = datetime.date(year, month, day)
     except ValueError:
-        sys.exit('Invalid date {}, use YYYY, YYYY-MM or YYYY-MM-DD'.format(sys.argv[2]))
+        sys.exit('Invalid date {}, use YYYY, YYYY-MM or YYYY-MM-DD'.format(sys.argv[3]))
 
-    report = generate_day_report(token, tag_projects, sys.argv[1],
-                                 start_date, end_date)
-    for date, hours, projects in report:
-        print(date, format_hours(hours), projects)
-        total_hours += hours
-    print('Total:', format_hours(total_hours))
+    if report_type == 'day':
+        total_hours = 0
+        report = generate_day_report(token, tag_projects, sys.argv[2],
+                                     start_date, end_date)
+        for date, hours, projects in report:
+            print(date, format_hours(hours), projects)
+            total_hours += hours
+        print('Total:', format_hours(total_hours))
+    elif report_type == 'project':
+        report = generate_project_report(token, tag_projects, sys.argv[2],
+                                         start_date, end_date)
+        for date, project, activities in report:
+            hours = sum(calculate_activity_duration_hours(activity)
+                        for activity in activities)
+            titles = {activity.title for activity in activities}
+            print(date, format_hours(hours), project,
+                  '(' + ', '.join(titles) + ')')
 
 if __name__ == "__main__":
     main()
