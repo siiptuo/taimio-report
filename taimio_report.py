@@ -7,7 +7,9 @@ from getpass import getpass
 import datetime
 import sys
 import json
+from json import JSONDecodeError
 import requests
+from requests.exceptions import RequestException, HTTPError
 import arrow
 
 
@@ -73,6 +75,11 @@ def fetch_activities(token, tag, start_date, end_date):
                        headers={
                            'Authorization': 'Bearer ' + token,
                        })
+    if req.status_code != 200:
+        try:
+            raise HTTPError(json.loads(req.text)['error'])
+        except (JSONDecodeError, KeyError):
+            raise HTTPError(req.text)
     return json.loads(req.text, object_hook=as_activity)
 
 
@@ -153,7 +160,12 @@ def main():
     except ValueError:
         sys.exit('Invalid date {}, use YYYY, YYYY-MM or YYYY-MM-DD'.format(sys.argv[3]))
 
-    activities = fetch_activities(token, tag, start_date, end_date)
+    try:
+        activities = fetch_activities(token, tag, start_date, end_date)
+    except HTTPError as exception:
+        sys.exit('API error: {}'.format(exception))
+    except RequestException as exception:
+        sys.exit('Failed to contact server {}: {}'.format(API_ROOT, exception))
 
     if report_type == 'day':
         total_hours = 0
