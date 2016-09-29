@@ -10,6 +10,18 @@ import json
 import requests
 import arrow
 
+
+DATE_REGEX = r'^(\d+)(?:-(0\d|1[0-2])(?:-([0-2]\d|3[0-1]))?)?$'
+
+
+def parse_date(date):
+    """Parse ISO 8601 date with optional month and day"""
+    match = re.match(DATE_REGEX, date)
+    if match is None:
+        raise ValueError
+    return (int(s) if s else None for s in match.group(1, 2, 3))
+
+
 API_ROOT = 'https://api.taim.io'
 
 
@@ -115,26 +127,22 @@ def main():
     total_hours = 0
 
     if len(sys.argv) < 3:
-        print('Usage: ./taimio_report.py tag date')
+        print('Usage: ./taimio_report.py tag <start-date> [<end-date>]')
         sys.exit()
 
     try:
-        date_regex = r'^(\d+)(?:-(0\d|1[0-2])(?:-([0-2]\d|3[0-1]))?)?$'
-        start_date = re.match(date_regex, sys.argv[2])
-        if start_date is None:
-            raise ValueError
-        year, month, day = (int(s) if s else None
-                            for s in start_date.group(1, 2, 3))
+        year, month, day = parse_date(sys.argv[2])
         start_date = datetime.date(year, month or 1, day or 1)
+        if len(sys.argv) > 3:
+            year, month, day = parse_date(sys.argv[3])
+        if not month:
+            end_date = get_last_date_of_year(year)
+        elif not day:
+            end_date = get_last_date_of_month(year, month)
+        else:
+            end_date = datetime.date(year, month, day)
     except ValueError:
         sys.exit('Invalid date {}, use YYYY, YYYY-MM or YYYY-MM-DD'.format(sys.argv[2]))
-
-    if not month:
-        end_date = get_last_date_of_year(year)
-    elif not day:
-        end_date = get_last_date_of_month(year, month)
-    else:
-        end_date = start_date
 
     report = generate_day_report(token, tag_projects, sys.argv[1],
                                  start_date, end_date)
