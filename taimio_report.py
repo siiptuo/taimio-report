@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 
-from collections import defaultdict
+from collections import defaultdict, OrderedDict
 import os.path
 import re
 from getpass import getpass
@@ -92,30 +92,22 @@ def group_activities_by_date(activities):
     dates = defaultdict(list)
     for activity in activities:
         dates[activity.started_at.date()].append(activity)
-    return dates
+    return OrderedDict(sorted(dates.items()))
 
 
-def generate_day_report(token, tag_projects, tag, start_date, end_date):
-    activities = fetch_activities(token, tag, start_date, end_date)
-    activities_by_date = group_activities_by_date(activities)
-
-    for date in sorted(activities_by_date):
-        activities = activities_by_date[date]
+def generate_day_report(activities, tag_projects):
+    for date, activities in group_activities_by_date(activities).items():
         projects = {get_activity_project(activity, tag_projects) or 'Other'
                     for activity in activities}
-        hours = sum(calculate_activity_duration_hours(activity)
-                    for activity in activities)
-        yield date, hours, ', '.join(sorted(projects))
+        yield date, activities, sorted(projects)
 
 
-def generate_project_report(token, tag_projects, tag, start_date, end_date):
-    activities = fetch_activities(token, tag, start_date, end_date)
-    activities_by_date = group_activities_by_date(activities)
-
-    for date in sorted(activities_by_date):
+def generate_project_report(activities, tag_projects):
+    for date, activities in group_activities_by_date(activities).items():
         projects = defaultdict(list)
-        for activity in activities_by_date[date]:
-            projects[get_activity_project(activity, tag_projects)].append(activity)
+        for activity in activities:
+            activity_project = get_activity_project(activity, tag_projects)
+            projects[activity_project].append(activity)
         for project in projects:
             yield date, project or 'Other', projects[project]
 
@@ -145,6 +137,8 @@ def main():
     if report_type not in ('day', 'project'):
         sys.exit("invalid report type {}, use day or project".format(report_type))
 
+    tag = sys.argv[2]
+
     try:
         year, month, day = parse_date(sys.argv[3])
         start_date = datetime.date(year, month or 1, day or 1)
@@ -159,17 +153,19 @@ def main():
     except ValueError:
         sys.exit('Invalid date {}, use YYYY, YYYY-MM or YYYY-MM-DD'.format(sys.argv[3]))
 
+    activities = fetch_activities(token, tag, start_date, end_date)
+
     if report_type == 'day':
         total_hours = 0
-        report = generate_day_report(token, tag_projects, sys.argv[2],
-                                     start_date, end_date)
-        for date, hours, projects in report:
-            print(date, format_hours(hours), projects)
+        report = generate_day_report(activities, tag_projects)
+        for date, activities, projects in report:
+            hours = sum(calculate_activity_duration_hours(activity)
+                        for activity in activities)
+            print(date, format_hours(hours), ', '.join(projects))
             total_hours += hours
         print('Total:', format_hours(total_hours))
     elif report_type == 'project':
-        report = generate_project_report(token, tag_projects, sys.argv[2],
-                                         start_date, end_date)
+        report = generate_project_report(activities, tag_projects)
         for date, project, activities in report:
             hours = sum(calculate_activity_duration_hours(activity)
                         for activity in activities)
